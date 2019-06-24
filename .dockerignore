@@ -1,0 +1,8 @@
+docker-compose.yml
+docker-stack.yml
+Dockerfile
+index.html
+Makefile
+.gitignore
+.git
+.DS_Store
