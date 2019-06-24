@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>Dump SSE</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+      integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+      crossorigin="anonymous"
+    />
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-sm-12 col-md-12">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Subscribe to Channel</h5>
+              <form method="POST">
+                <div class="form-group">
+                  <label for="exampleInputEmail1">Channel Id</label>
+                  <input
+                    type="text"
+                    name="channel"
+                    class="form-control"
+                    placeholder="user_notifications_123"
+                    value="{{ .channel }}"
+                  />
+                </div>
+                <button type="submit" class="btn btn-primary">Submit</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-12 col-md-12">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Messages</h5>
+              <div class="card-text" id="messages">
+                <pre>{{ .dump }}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

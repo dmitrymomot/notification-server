@@ -1,5 +1,9 @@
 package main
 
+import (
+	"sync"
+)
+
 type (
 	// Storage interface
 	Storage interface {
@@ -12,6 +16,6 @@ type (
 		// Delete event from storage
 		Delete(channelID string, event Event) error
 		// Deletes event which is older then given time from channel
-		DeleteExpired(channelID string, ttl string) error
+		GC(eventMaxAge string, wg *sync.WaitGroup) error
 	}
 )

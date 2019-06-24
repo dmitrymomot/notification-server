@@ -1,6 +1,10 @@
 package main
 
-import "github.com/dustin/go-broadcast"
+import (
+	"strings"
+
+	"github.com/dustin/go-broadcast"
+)
 
 var channels = make(map[string]broadcast.Broadcaster)
 
@@ -12,6 +16,13 @@ func openListener(channelID string) chan interface{} {
 
 func closeListener(channelID string, listener chan interface{}) {
 	channel(channelID).Unregister(listener)
+	close(listener)
+}
+
+func closeMultiListener(channels []string, listener chan interface{}) {
+	for _, channelID := range channels {
+		channel(channelID).Unregister(listener)
+	}
 	close(listener)
 }
 
@@ -31,6 +42,7 @@ func closeMultiChannelListener(channels []string, listener chan interface{}) {
 }
 
 func deleteBroadcast(channelID string) {
+	channelID = strings.ToLower(channelID)
 	b, ok := channels[channelID]
 	if ok {
 		b.Close()
@@ -39,6 +51,7 @@ func deleteBroadcast(channelID string) {
 }
 
 func channel(channelID string) broadcast.Broadcaster {
+	channelID = strings.ToLower(channelID)
 	b, ok := channels[channelID]
 	if !ok {
 		b = broadcast.NewBroadcaster(10)

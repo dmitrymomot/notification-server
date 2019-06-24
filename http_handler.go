@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -20,14 +21,27 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// Handler structure
-type Handler struct {
-	log Logger
-}
+type (
+	// Handler structure
+	Handler struct {
+		log Logger
+		sse *SSE
+	}
+
+	// EventDataRequest struct
+	EventDataRequest struct {
+		Title   string      `json:"title"`
+		Payload interface{} `json:"payload"`
+		TTL     int64       `json:"ttl"`
+	}
+)
 
 // NewHandler is a factory function, returns a new instance of the Handler structure
-func NewHandler(log Logger) *Handler {
-	return &Handler{log: log}
+func NewHandler(log Logger, sse *SSE) *Handler {
+	return &Handler{
+		log: log,
+		sse: sse,
+	}
 }
 
 // Router returns instance of the chi.Router
@@ -37,24 +51,40 @@ func (h *Handler) Router() chi.Router {
 	r.Get("/", h.healthCheck)
 	r.Get("/health", h.healthCheck)
 
-	r.Route("/sub", func(r chi.Router) {
-		r.Use(jwtauth.Verify(jwtauth.New("HS256", []byte(os.Getenv("JWT_SECRET")), nil), tokenFromQuery))
-		r.Use(jwtauth.Authenticator)
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-		r.Get("/user_notifications_{userID:[0-9]+}", h.subscribeToUserChannel)
+	r.Route("/listen", func(r chi.Router) {
+		if os.Getenv("BASIC_AUTH_USER") != "" && os.Getenv("BASIC_AUTH_PASSWORD") != "" {
+			r.Use(basicAuth(os.Getenv("BASIC_AUTH_USER"), os.Getenv("BASIC_AUTH_PASSWORD")))
+		}
+		r.HandleFunc("/", h.listener)
+		r.HandleFunc("/dump", h.dump)
+	})
+
+	r.Route("/sub", func(r chi.Router) {
+		if os.Getenv("JWT_SECRET") != "" {
+			r.Use(jwtauth.Verify(jwtauth.New("HS256", []byte(os.Getenv("JWT_SECRET")), nil), tokenFromQuery))
+			r.Use(jwtauth.Authenticator)
+		}
+
+		r.Get("/{channel}", h.subscribeToSingleChannel)
 	})
 
 	r.Route("/multisub-split", func(r chi.Router) {
-		r.Use(jwtauth.Verify(jwtauth.New("HS256", []byte(os.Getenv("JWT_SECRET")), nil), tokenFromQuery))
-		r.Use(jwtauth.Authenticator)
+		if os.Getenv("JWT_SECRET") != "" {
+			r.Use(jwtauth.Verify(jwtauth.New("HS256", []byte(os.Getenv("JWT_SECRET")), nil), tokenFromQuery))
+			r.Use(jwtauth.Authenticator)
+		}
 
 		r.Get("/{channels}", h.subscribeToMultiChannels)
 	})
 
 	r.Route("/pub", func(r chi.Router) {
-		r.Use(basicToken)
+		if os.Getenv("BASIC_TOKEN") != "" {
+			r.Use(basicToken(os.Getenv("BASIC_TOKEN")))
+		}
 
-		r.Post("/{channelID}", h.publishToChannel)
+		r.Post("/{channel}", h.publishToChannel)
 	})
 
 	return r
@@ -66,13 +96,63 @@ func (h *Handler) healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("."))
 }
 
+func (h *Handler) dump(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	channelID := r.FormValue("channel")
+	if channelID == "" {
+		channelID = chi.URLParam(r, "channel")
+	}
+
+	dump := h.sse.DumpStorage(channelID)
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	tmpl := template.Must(template.ParseFiles("/static/dump.html"))
+	err := tmpl.Execute(w, map[string]interface{}{
+		"channel": r.FormValue("channel"),
+		"dump":    dump,
+	})
+	if err != nil {
+		h.log.Errorf("parse template: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
+func (h *Handler) listener(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	channelID := r.FormValue("channel")
+	if channelID == "" {
+		channelID = chi.URLParam(r, "channel")
+	}
+
+	endpoint := "/sub"
+	if r.FormValue("type") == "2" {
+		endpoint = "/multisub-split"
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	tmpl := template.Must(template.ParseFiles("/static/index.html"))
+	err := tmpl.Execute(w, map[string]interface{}{
+		"channel":       r.FormValue("channel"),
+		"token":         r.FormValue("token"),
+		"last_event_id": r.FormValue("last_event_id"),
+		"type":          r.FormValue("type"),
+		"endpoint":      endpoint,
+	})
+	if err != nil {
+		h.log.Errorf("parse template: %v", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+}
+
 func (h *Handler) publishToChannel(w http.ResponseWriter, r *http.Request) {
-	channelID := chi.URLParam(r, "channelID")
+	channelID := chi.URLParam(r, "channel")
 	if channelID == "" {
 		http.Error(w, "Missed channel id!", http.StatusBadRequest)
 		return
 	}
-	payload := EventData{}
+	payload := EventDataRequest{}
 	if err := decodeJSON(r.Body, &payload); err != nil {
 		h.log.Errorf("decode json: %v", err)
 		http.Error(w, "Malformed JSON", http.StatusBadRequest)
@@ -80,7 +160,11 @@ func (h *Handler) publishToChannel(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log.Debugf("publish to channel %s with payload: %+v", channelID, payload)
 
-	if err := pubEvent(channelID, payload); err != nil {
+	eventData := EventData{
+		Title:   payload.Title,
+		Payload: payload.Payload,
+	}
+	if err := h.sse.PubEvent(channelID, eventData, payload.TTL); err != nil {
 		h.log.Errorf("publish to channel %s: %v", channelID, err)
 		http.Error(w, fmt.Sprintf("could not publish to channel %s", channelID), http.StatusBadRequest)
 		return
@@ -89,24 +173,28 @@ func (h *Handler) publishToChannel(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("event has been sent"))
 }
 
-func (h *Handler) subscribeToUserChannel(w http.ResponseWriter, r *http.Request) {
-	userID := chi.URLParam(r, "userID")
-	if userID == "" {
-		h.log.Debugf("missed user id")
-		http.Error(w, "Missed user id!", http.StatusBadRequest)
+func (h *Handler) subscribeToSingleChannel(w http.ResponseWriter, r *http.Request) {
+	channelID := chi.URLParam(r, "channel")
+	if channelID == "" {
+		h.log.Debugf("missed channel id")
+		http.Error(w, "Missed channel id!", http.StatusBadRequest)
 		return
 	}
-	channelID := fmt.Sprintf("user_notifications_%s", userID)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		h.log.Warnf("streaming unsupported: user_id: %s", userID)
+		h.log.Warnf("streaming unsupported: channel %s", channelID)
 		http.Error(w, "Streaming unsupported!", http.StatusNotImplemented)
 		return
 	}
 
-	listener := openListener(channelID)
-	defer closeListener(channelID, listener)
+	listener, history, err := h.sse.SubscribeToChannel(channelID, getLastEventID(r))
+	if err != nil {
+		h.log.Errorf("subscribe to channel %s with last event id %s", channelID, getLastEventID(r))
+		http.Error(w, "Could not subscribe to events channel", http.StatusInternalServerError)
+		return
+	}
+	defer h.sse.Unsubscribe(channelID, listener)
 
 	// Set the headers related to event streaming.
 	if err := openHTTPConnection(w, r); err != nil {
@@ -115,24 +203,36 @@ func (h *Handler) subscribeToUserChannel(w http.ResponseWriter, r *http.Request)
 	}
 	flusher.Flush()
 
-	h.log.Debugf("client connected: %s", userID)
+	h.log.Debugf("client connected: %s", channelID)
+
+	// send historical events
+	for _, event := range history {
+		if !event.IsExpired() {
+			err := sse.Encode(w, event.MapToSseEvent())
+			if err != nil {
+				h.log.Errorf("sse encoding: %s (channel id: %s, event: %#v)", err.Error(), channelID, event)
+				return
+			}
+			flusher.Flush()
+		}
+	}
 
 	for {
 		select {
 		case <-r.Context().Done():
-			h.log.Debugf("client disconnected: %s", userID)
+			h.log.Debugf("client disconnected: %s", channelID)
 			return
 		case event := <-listener:
-			if e, ok := event.(sse.Event); ok {
-				h.log.Debugf("user %s received event: %+v", userID, event)
-				err := sse.Encode(w, e)
+			if e, ok := event.(Event); ok {
+				h.log.Debugf("channel %s: received event: %+v", channelID, event)
+				err := sse.Encode(w, e.MapToSseEvent())
 				if err != nil {
-					h.log.Errorf("sse encoding: %s (user id: %s, event: %#v)", err.Error(), userID, event)
+					h.log.Errorf("sse encoding: %s (channel id: %s, event: %#v)", err.Error(), channelID, event)
 					return
 				}
 				flusher.Flush()
 			} else {
-				h.log.Errorf("event is not sse.Event type: %#v", event)
+				h.log.Errorf("event is not Event type: %#v", event)
 			}
 		default:
 			flusher.Flush()
@@ -157,8 +257,13 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	listener := openMultiChannelListener(channels)
-	defer closeMultiChannelListener(channels, listener)
+	listener, history, err := h.sse.SubscribeToMultiChannel(channels, getLastEventID(r))
+	if err != nil {
+		h.log.Errorf("subscribe to channels group %s with last event id %s", channelsStr, getLastEventID(r))
+		http.Error(w, "Could not subscribe to events channel", http.StatusInternalServerError)
+		return
+	}
+	defer h.sse.UnsubscribeFromMultiChannel(channels, listener)
 
 	// Set the headers related to event streaming.
 	if err := openHTTPConnection(w, r); err != nil {
@@ -170,6 +275,18 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 
 	h.log.Debugf("client connected to channels group: %s", channelsStr)
 
+	// send historical events
+	for _, event := range history {
+		if !event.IsExpired() {
+			err := sse.Encode(w, event.MapToSseEvent())
+			if err != nil {
+				h.log.Errorf("sse encoding: %s (channels group: %s, event: %#v)", err.Error(), channelsStr, event)
+				return
+			}
+			flusher.Flush()
+		}
+	}
+
 	for {
 		select {
 		case <-r.Context().Done():
@@ -177,8 +294,8 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 			return
 		case event := <-listener:
 			h.log.Debugf("channels group %s received event: %+v", channelsStr, event)
-			if e, ok := event.(sse.Event); ok {
-				err := sse.Encode(w, e)
+			if e, ok := event.(Event); ok {
+				err := sse.Encode(w, e.MapToSseEvent())
 				if err != nil {
 					h.log.Errorf("sse encoding: %s (channels: %s, event: %#v)", err.Error(), channelsStr, event)
 					return

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"sort"
 	"sync"
 	"time"
@@ -47,6 +46,8 @@ func (s *MemStorage) GetByLastID(channelID string, lastEventID int64) []Event {
 	i := positionGt(events, lastEventID)
 	if i >= 0 {
 		return events[i:]
+	} else if i == -2 {
+		return events
 	}
 
 	return nil
@@ -85,15 +86,47 @@ func (s *MemStorage) Delete(channelID string, event Event) error {
 	return nil
 }
 
-// DeleteExpired deletes event which is older then given time from channel
-func (s *MemStorage) DeleteExpired(channelID string, ttl string) error {
-	d, err := time.ParseDuration(ttl)
+// GC - garbage collector
+func (s *MemStorage) GC(eventMaxAge string, wg *sync.WaitGroup) error {
+	maxAge, err := time.ParseDuration(eventMaxAge)
 	if err != nil {
 		return err
 	}
-	t := time.Now().UnixNano() - d.Nanoseconds()
-	log.Printf("parsed time: %d = %d - %d", t, time.Now().UnixNano(), d.Nanoseconds())
 
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			wg.Add(1)
+			s.gc(maxAge)
+			wg.Done()
+		}
+	}
+}
+
+func (s *MemStorage) gc(maxAge time.Duration) error {
+	s.RLock()
+	channels := make([]string, 0, len(s.events))
+	for ch := range s.events {
+		channels = append(channels, ch)
+	}
+	s.RUnlock()
+
+	t := time.Now().UnixNano() - maxAge.Nanoseconds()
+
+	for _, channelID := range channels {
+		if err := s.deleteBefore(channelID, t); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// deleteBefore deletes event which is older then given time
+func (s *MemStorage) deleteBefore(channelID string, t int64) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -103,7 +136,6 @@ func (s *MemStorage) DeleteExpired(channelID string, ttl string) error {
 	}
 
 	i := positionGt(events, t)
-	log.Printf("position: %+v", i)
 	if i >= 0 {
 		l := len(events[i:])
 		c := defaultChannelLength
@@ -149,8 +181,10 @@ func position(a []Event, id int64) (res int) {
 func positionGt(a []Event, s int64) (res int) {
 	mid := len(a) / 2
 	switch {
-	case len(a) == 0 || a[0].ID > s:
+	case len(a) == 0:
 		res = -1
+	case a[0].ID > s:
+		res = 0
 	case a[0].ID == s:
 		res = 1
 	case a[len(a)-1].ID <= s:

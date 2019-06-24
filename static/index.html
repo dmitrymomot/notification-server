@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <title>SSE Watcher</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+      integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+      crossorigin="anonymous"
+    />
+
+    <script type="text/javascript" src="/static/NchanSubscriber.js"></script>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="row">
+        <div class="col-sm-12 col-md-4">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Subscribe to Channel</h5>
+              <form method="POST">
+                <div class="form-group">
+                  <label for="exampleInputEmail1">Channel Id</label>
+                  <input
+                    type="text"
+                    name="channel"
+                    class="form-control"
+                    placeholder="user_notifications_123"
+                    value="{{ .channel }}"
+                  />
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="type"
+                  id="exampleRadios1" value="1"
+                  {{ if eq .type "1" }} checked {{ end }}
+                  />
+                  <label class="form-check-label" for="exampleRadios1">
+                    Single channel subscription
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="type"
+                  id="exampleRadios2" value="2"
+                  {{ if eq .type "2" }} checked {{ end }}
+                  />
+                  <label class="form-check-label" for="exampleRadios2">
+                    Multi-channel subscription
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label for="exampleInputPassword1">Last Event Id</label>
+                  <input
+                    type="text"
+                    name="last_event_id"
+                    class="form-control"
+                    placeholder="12344567890:1233"
+                    value="{{ .last_event_id }}"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="exampleFormControlTextarea1">User Token</label>
+                  <textarea
+                    class="form-control"
+                    name="token"
+                    rows="3"
+                    >{{ .token }}</textarea
+                  >
+                </div>
+                <button type="submit" class="btn btn-primary">Submit</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-12 col-md-8">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Messages</h5>
+              <div class="card-text" id="messages">
+                <p>Waiting for events...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      function addMsg(msg) {
+        var node = document.createElement('pre');
+        var textnode = document.createTextNode(msg);
+        node.appendChild(textnode);
+        document.getElementById('messages').appendChild(node);
+      }
+
+      function addErr(msg) {
+        var node = document.createElement('div');
+        node.setAttribute('class', 'alert alert-danger');
+        node.setAttribute('role', 'alert');
+        var textnode = document.createTextNode(msg);
+        node.appendChild(textnode);
+        document.getElementById('messages').appendChild(node);
+      }
+
+      function addInfo(msg) {
+        var node = document.createElement('div');
+        node.setAttribute('class', 'alert alert-primary');
+        node.setAttribute('role', 'alert');
+        var textnode = document.createTextNode(msg);
+        node.appendChild(textnode);
+        document.getElementById('messages').appendChild(node);
+      }
+
+      let url =
+        '{{ .endpoint }}/{{ .channel }}?token={{ .token }}&last_event_id={{ .last_event_id }}';
+
+      if ('{{ .channel }}' != '') {
+        var sub = new NchanSubscriber(url, { subscriber: 'eventsource' });
+
+        sub.on('notification', function(evt) {
+          addInfo(Object.values(evt));
+        });
+
+        sub.on('connect', function(evt) {
+          addInfo('connected');
+        });
+
+        sub.on('disconnect', function(evt) {
+          addInfo('disconnect');
+        });
+
+        sub.on('error', function(evt) {
+          console.error(evt);
+          addErr(evt);
+        });
+
+        sub.on('message', function(message, message_metadata) {
+          addMsg(Object.values(message_metadata));
+          addMsg(message);
+        });
+
+        sub.start();
+      }
+    </script>
+  </body>
+</html>
