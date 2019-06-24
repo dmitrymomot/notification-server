@@ -319,9 +319,9 @@ func clientID(r *http.Request) string {
 }
 
 func getLastEventID(r *http.Request) string {
-	lastEventID := r.URL.Query().Get("last_event_id")
+	lastEventID := r.Header.Get("Last-Event-ID")
 	if lastEventID == "" {
-		lastEventID = r.Header.Get("Last-Event-ID")
+		lastEventID = r.URL.Query().Get("last_event_id")
 	}
 	return lastEventID
 }

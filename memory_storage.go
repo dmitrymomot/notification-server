@@ -45,7 +45,7 @@ func (s *MemStorage) GetByLastID(channelID string, lastEventID int64) []Event {
 
 	i := positionGt(events, lastEventID)
 	if i >= 0 {
-		return events[i:]
+		return events[i+1:]
 	} else if i == -2 {
 		return events
 	}
@@ -199,7 +199,7 @@ func positionGt(a []Event, s int64) (res int) {
 			res += mid + 1
 		}
 	default:
-		res = mid + 1
+		res = mid
 	}
 	return res
 }
