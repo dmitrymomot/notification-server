@@ -45,7 +45,10 @@ func (e Event) MapToSseEvent() sse.Event {
 
 // IsExpired func
 func (e Event) IsExpired() bool {
-	return time.Now().After(time.Unix(0, e.Timestamp).Add(time.Duration(e.TTL) * time.Second))
+	if e.TTL > 0 {
+		return time.Now().After(time.Unix(0, e.Timestamp).Add(time.Duration(e.TTL) * time.Second))
+	}
+	return false
 }
 
 // NewSSE factory

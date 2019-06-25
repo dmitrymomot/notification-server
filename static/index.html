@@ -117,57 +117,86 @@
         document.getElementById('messages').appendChild(node);
       }
 
-      function addErr(msg) {
+      function addAlert(type, msg) {
         var node = document.createElement('div');
-        node.setAttribute('class', 'alert alert-danger');
+        node.setAttribute('class', 'alert alert-' + type);
         node.setAttribute('role', 'alert');
         var textnode = document.createTextNode(msg);
         node.appendChild(textnode);
         document.getElementById('messages').appendChild(node);
+      }
+
+      function addSuccess(msg) {
+        addAlert('success', msg);
+      }
+
+      function addErr(msg) {
+        addAlert('danger', msg);
+      }
+
+      function addWarn(msg) {
+        addAlert('warning', msg);
       }
 
       function addInfo(msg) {
-        var node = document.createElement('div');
-        node.setAttribute('class', 'alert alert-primary');
-        node.setAttribute('role', 'alert');
-        var textnode = document.createTextNode(msg);
-        node.appendChild(textnode);
-        document.getElementById('messages').appendChild(node);
+        addAlert('primary', msg);
       }
 
       function addDebug(msg) {
-        var node = document.createElement('div');
-        node.setAttribute('class', 'alert alert-light');
-        node.setAttribute('role', 'alert');
-        var textnode = document.createTextNode(msg);
-        node.appendChild(textnode);
-        document.getElementById('messages').appendChild(node);
+        addAlert('light', msg);
       }
 
-      let url =
-        '{{ .endpoint }}/{{ .channel }}?token={{ .token }}&last_event_id={{ .last_event_id }}';
-      if ('{{ .channel }}' != '') {
-        var sub = new NchanSubscriber(url, { subscriber: 'eventsource' });
-        sub.on('notification', function(evt) {
-          console.log(evt);
-          addDebug(Object.values(evt));
-        });
-        sub.on('connect', function(evt) {
-          console.log(evt);
-          addInfo('connected');
-        });
-        sub.on('disconnect', function(evt) {
-          console.log(evt);
-          addInfo('disconnected');
-        });
-        sub.on('error', function(evt) {
-          console.log(evt);
-          addErr(evt);
-        });
-        sub.on('message', function(message, message_metadata) {
-          addMsg(Object.values(message_metadata), message);
-        });
-        sub.start();
+      if (!!window.EventSource) {
+        var source = new EventSource(
+          '{{ .endpoint }}/{{ .channel }}?last_event_id={{ .last_event_id }}',
+          { withCredentials: true }
+        );
+
+        source.addEventListener(
+          'message',
+          function(e) {
+            addMsg(e.lastEventId, e.data);
+          },
+          false
+        );
+
+        source.onerror = function(e) {
+          if (this.readyState == EventSource.CLOSED) {
+            addInfo('Connection closed');
+          }
+          if (this.readyState == EventSource.CONNECTING) {
+            addWarn('Connection lost, reconnecting...');
+          }
+          if (this.readyState == EventSource.OPEN) {
+            addSuccess('Connection successfully established');
+          }
+        };
+
+        source.addEventListener(
+          'open',
+          function(e) {
+            addSuccess('Connection successfully established');
+          },
+          false
+        );
+
+        source.addEventListener(
+          'close',
+          function(e) {
+            addInfo('Connection closed');
+          },
+          false
+        );
+
+        source.addEventListener(
+          'notification',
+          function(e) {
+            console.log(e.data);
+          },
+          false
+        );
+      } else {
+        addErr('Event source is not supported');
       }
     </script>
   </body>

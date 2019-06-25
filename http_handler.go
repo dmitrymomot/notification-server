@@ -6,18 +6,13 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-contrib/sse"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
-	"github.com/nats-io/stan.go"
-	"github.com/nats-io/stan.go/pb"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -225,7 +220,7 @@ func (h *Handler) subscribeToSingleChannel(w http.ResponseWriter, r *http.Reques
 	for {
 		select {
 		case <-r.Context().Done():
-			h.log.Debugf("client disconnected: %s", channelID)
+			h.log.Debugf("client closed connection: %s", channelID)
 			return
 		case event := <-listener:
 			if e, ok := event.(Event); ok {
@@ -275,7 +270,6 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 		h.log.Errorf("open http connection: %s (channels: %s)", err.Error(), channelsStr)
 		return
 	}
-
 	flusher.Flush()
 
 	h.log.Debugf("client connected to channels group: %s", channelsStr)
@@ -295,7 +289,7 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 	for {
 		select {
 		case <-r.Context().Done():
-			h.log.Debugf("client disconnected from channels group: %s", channelsStr)
+			h.log.Debugf("client closed connection to channels group: %s", channelsStr)
 			return
 		case event := <-listener:
 			h.log.Debugf("channels group %s received event: %+v", channelsStr, event)
@@ -355,33 +349,4 @@ func openHTTPConnection(w http.ResponseWriter, r *http.Request) error {
 		Event: "notification",
 		Data:  "SSE connection successfully established",
 	})
-}
-
-func startOption(lastEventID string) (stan.SubscriptionOption, error) {
-	startOpt := stan.StartAt(pb.StartPosition_NewOnly)
-	if lastEventID != "" {
-		var startTime time.Time
-		var sequence int
-		opts := strings.Split(lastEventID, ":")
-		if len(opts) == 2 {
-			t := opts[0]
-			t2, err := strconv.ParseInt(t, 10, 64)
-			if err != nil {
-				log.Printf("[error] parse last event id %s: %+v", lastEventID, err)
-				return nil, err
-			}
-			startTime = time.Unix(0, t2)
-			sequence, err = strconv.Atoi(opts[1])
-			if err != nil {
-				log.Printf("[error] parse sequence %s: %+v", lastEventID, err)
-				return nil, err
-			}
-			if sequence > 0 {
-				startOpt = stan.StartAtSequence(uint64(sequence))
-			} else {
-				startOpt = stan.StartAtTime(startTime)
-			}
-		}
-	}
-	return startOpt, nil
 }

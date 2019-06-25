@@ -195,9 +195,9 @@ func positionGt(a []Event, s int64) (res int) {
 	case len(a) == 0:
 		res = -1
 	case a[0].ID > s:
-		res = 0
+		res = -2
 	case a[0].ID == s:
-		res = 1
+		res = 0
 	case a[len(a)-1].ID <= s:
 		res = len(a)
 	case a[mid].ID < s && a[mid+1].ID > s:
