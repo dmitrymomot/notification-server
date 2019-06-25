@@ -59,6 +59,8 @@ func (h *Handler) Router() chi.Router {
 		}
 		r.HandleFunc("/", h.listener)
 		r.HandleFunc("/dump", h.dump)
+		r.HandleFunc("/single/{channel}", h.subscribeToSingleChannel)
+		r.HandleFunc("/multi/{channels}", h.subscribeToMultiChannels)
 	})
 
 	r.Route("/sub", func(r chi.Router) {
@@ -125,9 +127,13 @@ func (h *Handler) listener(w http.ResponseWriter, r *http.Request) {
 		channelID = chi.URLParam(r, "channel")
 	}
 
-	endpoint := "/sub"
-	if r.FormValue("type") == "2" {
-		endpoint = "/multisub-split"
+	stype := r.FormValue("type")
+	if stype == "" {
+		stype = "1"
+	}
+	endpoint := "/listen/single"
+	if stype == "2" {
+		endpoint = "/listen/multi"
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -135,9 +141,8 @@ func (h *Handler) listener(w http.ResponseWriter, r *http.Request) {
 	tmpl := template.Must(template.ParseFiles("/static/index.html"))
 	err := tmpl.Execute(w, map[string]interface{}{
 		"channel":       r.FormValue("channel"),
-		"token":         r.FormValue("token"),
 		"last_event_id": r.FormValue("last_event_id"),
-		"type":          r.FormValue("type"),
+		"type":          stype,
 		"endpoint":      endpoint,
 	})
 	if err != nil {
