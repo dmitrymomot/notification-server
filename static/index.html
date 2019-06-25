@@ -21,10 +21,25 @@
   </head>
 
   <body>
-    <div class="container">
+    <nav class="navbar sticky-top navbar-expand-md navbar-light bg-light">
+      <div class="container">
+        <a class="navbar-brand" href="#">SSE</a>
+        <ul class="navbar-nav">
+          <li class="nav-item active">
+            <a class="nav-link" href="/listen">
+              Events Flow
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="/listen/dump">Channel Dump</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+    <div class="container mt-4">
       <div class="row">
         <div class="col-sm-12 col-md-4">
-          <div class="card">
+          <div class="card m-ms-1">
             <div class="card-body">
               <h5 class="card-title">Subscribe to Channel</h5>
               <form method="POST">
@@ -38,23 +53,25 @@
                     value="{{ .channel }}"
                   />
                 </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="type"
-                  id="exampleRadios1" value="1"
-                  {{ if eq .type "1" }} checked {{ end }}
-                  />
-                  <label class="form-check-label" for="exampleRadios1">
-                    Single channel subscription
-                  </label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="type"
-                  id="exampleRadios2" value="2"
-                  {{ if eq .type "2" }} checked {{ end }}
-                  />
-                  <label class="form-check-label" for="exampleRadios2">
-                    Multi-channel subscription
-                  </label>
+                <div class="form-group">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="type"
+                    id="exampleRadios1" value="1"
+                    {{ if eq .type "1" }} checked {{ end }}
+                    />
+                    <label class="form-check-label" for="exampleRadios1">
+                      Single channel subscription
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="type"
+                    id="exampleRadios2" value="2"
+                    {{ if eq .type "2" }} checked {{ end }}
+                    />
+                    <label class="form-check-label" for="exampleRadios2">
+                      Multi-channel subscription
+                    </label>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label for="exampleInputPassword1">Last Event Id</label>
@@ -81,7 +98,7 @@
           </div>
         </div>
         <div class="col-sm-12 col-md-8">
-          <div class="card">
+          <div class="card m-ms-1">
             <div class="card-body">
               <h5 class="card-title">Messages</h5>
               <div class="card-text" id="messages">

@@ -103,7 +103,7 @@ func (h *Handler) dump(w http.ResponseWriter, r *http.Request) {
 		channelID = chi.URLParam(r, "channel")
 	}
 
-	dump := h.sse.DumpStorage(channelID)
+	dump := prettyPrint(h.sse.DumpStorage(channelID))
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

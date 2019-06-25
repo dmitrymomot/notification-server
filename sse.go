@@ -76,6 +76,7 @@ func (s *SSE) SubscribeToChannel(channelID, lastEventID string) (chan interface{
 		if err != nil {
 			return nil, nil, err
 		}
+		log.Printf("\nchannel: %s;\nlast event id: %s;\nhistory: %+v\n", channelID, lastEventID, history)
 	}
 	return listener, history, err
 }
@@ -90,9 +91,7 @@ func (s *SSE) SubscribeToMultiChannel(channels []string, lastEventID string) (ch
 			if err != nil {
 				return nil, nil, err
 			}
-			log.Printf("channel: %s;\nlast id: %s;\nevents: %+v\n\n", channelID, lastEventID, events)
 			history = append(history, events...)
-			log.Printf("history: %+v", history)
 		}
 	}
 	return listener, history, nil

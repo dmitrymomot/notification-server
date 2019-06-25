@@ -41,7 +41,7 @@ func main() {
 
 	// Garbage collection
 	go func() {
-		storageInstance.GC(os.Getenv("SSE_MAX_AGE"), &wg)
+		storageInstance.GC(os.Getenv("SSE_MAX_AGE"), os.Getenv("GC_PERIOD"), &wg)
 	}()
 
 	// Server application

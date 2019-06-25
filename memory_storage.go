@@ -87,13 +87,24 @@ func (s *MemStorage) Delete(channelID string, event Event) error {
 }
 
 // GC - garbage collector
-func (s *MemStorage) GC(eventMaxAge string, wg *sync.WaitGroup) error {
+func (s *MemStorage) GC(eventMaxAge, gcPeriod string, wg *sync.WaitGroup) error {
+	if eventMaxAge == "" {
+		eventMaxAge = "1h"
+	}
 	maxAge, err := time.ParseDuration(eventMaxAge)
 	if err != nil {
 		return err
 	}
 
-	ticker := time.NewTicker(1 * time.Second)
+	if gcPeriod == "" {
+		gcPeriod = "1h"
+	}
+	period, err := time.ParseDuration(gcPeriod)
+	if err != nil {
+		return err
+	}
+
+	ticker := time.NewTicker(period)
 	defer ticker.Stop()
 
 	for {
