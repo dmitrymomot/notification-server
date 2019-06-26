@@ -26,6 +26,7 @@ up:
 		-e SSE_MAX_AGE=48h \
 		-e GC_PERIOD=5m \
 		-e APP_PORT=8008 \
+		-e ALLOWED_ORIGINS=localhost,test.local \
 		-p 8009:8008 \
 		--name=sse \
 		dmitrymomot/notification-server:$v
