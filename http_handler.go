@@ -215,7 +215,7 @@ func (h *Handler) subscribeToSingleChannel(w http.ResponseWriter, r *http.Reques
 				return
 			}
 			flusher.Flush()
-			h.log.Debugf("[channel_received_event] channel %s: received event: %+v", channelID, event)
+			h.log.Debugf("[channel_received_events_history] channel %s: received event: %+v", channelID, event)
 		}
 	}
 
@@ -283,7 +283,7 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 				return
 			}
 			flusher.Flush()
-			h.log.Debugf("[group_received_event] channels group %s received event: %+v", channelsStr, event)
+			h.log.Debugf("[group_received_events_history] channels group %s received event: %+v", channelsStr, event)
 		}
 	}
 

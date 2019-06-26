@@ -6,12 +6,14 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/cors"
 )
 
 // Storage instance
@@ -41,6 +43,19 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
+	ao := []string{"*"}
+	if allowedOrigins != "" {
+		ao = strings.Split(allowedOrigins, ",")
+	}
+	r.Use(cors.New(cors.Options{
+		AllowedOrigins:   ao,
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "Last-Event-ID", "Origin"},
+		AllowCredentials: true,
+		MaxAge:           10080, // Maximum value not ignored by any of major browsers
+	}).Handler)
 
 	r.Mount("/", NewHandler(logger, NewSSE(storageInstance)).Router())
 
