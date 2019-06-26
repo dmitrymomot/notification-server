@@ -22,7 +22,14 @@ var wg sync.WaitGroup
 
 func main() {
 	// Set max process number
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	n := 1
+	if runtime.NumCPU() > 3 {
+		n = runtime.NumCPU() / 2
+	}
+	runtime.GOMAXPROCS(n)
+
+	logger := NewLogger()
+	logger.Debugf("start running on %d cpu", n)
 
 	// Init in-memory storage
 	storageInstance = NewMemStorage()
@@ -34,8 +41,6 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-
-	logger := NewLogger()
 
 	r.Mount("/", NewHandler(logger, NewSSE(storageInstance)).Router())
 

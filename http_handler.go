@@ -158,7 +158,6 @@ func (h *Handler) publishToChannel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Malformed JSON", http.StatusBadRequest)
 		return
 	}
-	h.log.Debugf("publish to channel %s with payload: %+v", channelID, payload)
 
 	eventData := EventData{
 		Title:   payload.Title,
@@ -169,6 +168,8 @@ func (h *Handler) publishToChannel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("could not publish to channel %s", channelID), http.StatusBadRequest)
 		return
 	}
+
+	h.log.Debugf("[sent_event] publish to channel %s with payload: %+v", channelID, payload)
 
 	w.Write([]byte("event has been sent"))
 }
@@ -203,7 +204,7 @@ func (h *Handler) subscribeToSingleChannel(w http.ResponseWriter, r *http.Reques
 	}
 	flusher.Flush()
 
-	h.log.Debugf("client connected: %s", channelID)
+	h.log.Debugf("[client_connected] client connected: %s", channelID)
 
 	// send historical events
 	for _, event := range history {
@@ -214,28 +215,27 @@ func (h *Handler) subscribeToSingleChannel(w http.ResponseWriter, r *http.Reques
 				return
 			}
 			flusher.Flush()
+			h.log.Debugf("[channel_received_event] channel %s: received event: %+v", channelID, event)
 		}
 	}
 
 	for {
 		select {
 		case <-r.Context().Done():
-			h.log.Debugf("client closed connection: %s", channelID)
+			h.log.Debugf("[client_disconnected] client closed connection: %s", channelID)
 			return
 		case event := <-listener:
 			if e, ok := event.(Event); ok {
-				h.log.Debugf("channel %s: received event: %+v", channelID, event)
 				err := sse.Encode(w, e.MapToSseEvent())
 				if err != nil {
 					h.log.Errorf("sse encoding: %s (channel id: %s, event: %#v)", err.Error(), channelID, event)
 					return
 				}
 				flusher.Flush()
+				h.log.Debugf("[channel_received_event] channel %s: received event: %+v", channelID, event)
 			} else {
 				h.log.Errorf("event is not Event type: %#v", event)
 			}
-		default:
-			flusher.Flush()
 		}
 	}
 }
@@ -272,7 +272,7 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 	}
 	flusher.Flush()
 
-	h.log.Debugf("client connected to channels group: %s", channelsStr)
+	h.log.Debugf("[client_connected_group] client connected to channels group: %s", channelsStr)
 
 	// send historical events
 	for _, event := range history {
@@ -283,16 +283,16 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 				return
 			}
 			flusher.Flush()
+			h.log.Debugf("[group_received_event] channels group %s received event: %+v", channelsStr, event)
 		}
 	}
 
 	for {
 		select {
 		case <-r.Context().Done():
-			h.log.Debugf("client closed connection to channels group: %s", channelsStr)
+			h.log.Debugf("[client_disconnected_group] client closed connection to channels group: %s", channelsStr)
 			return
 		case event := <-listener:
-			h.log.Debugf("channels group %s received event: %+v", channelsStr, event)
 			if e, ok := event.(Event); ok {
 				err := sse.Encode(w, e.MapToSseEvent())
 				if err != nil {
@@ -300,11 +300,10 @@ func (h *Handler) subscribeToMultiChannels(w http.ResponseWriter, r *http.Reques
 					return
 				}
 				flusher.Flush()
+				h.log.Debugf("[group_received_event] channels group %s received event: %+v", channelsStr, event)
 			} else {
 				h.log.Errorf("event is not sse.Event type: %#v", event)
 			}
-		default:
-			flusher.Flush()
 		}
 	}
 }
