@@ -114,6 +114,9 @@ func (s *SSE) UnsubscribeFromMultiChannel(channels []string, listener chan inter
 
 // DumpStorage func
 func (s *SSE) DumpStorage(channelID string) []Event {
+	if channelID == "" {
+		return nil
+	}
 	channelID = strings.ToLower(channelID)
 	return s.storage.GetAllInChannel(channelID)
 }
