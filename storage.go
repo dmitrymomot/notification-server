@@ -17,5 +17,7 @@ type (
 		Delete(channelID string, event Event) error
 		// Deletes event which is older then given time from channel
 		GC(eventMaxAge, gcPeriod string, wg *sync.WaitGroup) error
+		// Close storage
+		Close() error
 	}
 )

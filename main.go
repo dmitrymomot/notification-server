@@ -34,7 +34,13 @@ func main() {
 	logger.Debugf("start running on %d cpu", n)
 
 	// Init in-memory storage
-	storageInstance = NewMemStorage()
+	// storageInstance = NewMemStorage()
+	// Init persistent storage
+	storageInstance, err := NewPersistentStorage("/data", logger)
+	if err != nil {
+		logger.Fatalf("init persistent storage: %+v", err)
+	}
+	defer storageInstance.Close()
 
 	// Set up router
 	r := chi.NewRouter()

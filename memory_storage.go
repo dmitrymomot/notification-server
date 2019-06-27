@@ -214,3 +214,9 @@ func positionGt(a []Event, s int64) (res int) {
 	}
 	return res
 }
+
+// Close storage
+// it's here to implement Storage interface
+func (s *MemStorage) Close() error {
+	return nil
+}
