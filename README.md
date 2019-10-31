@@ -1,2 +1,2 @@
 # notification-server
-Distributed notification server
+SSE notification server
